@@ -25,6 +25,12 @@
 
 Optional.  Lets you define circonus check bundles, metrics, and rules via the node's attributes.  See the 'Cookbook Attributes' section for details on the expected attribute structure.
 
+### `circonus::broker`
+
+Installs an enterprise broker. This requires Java to be pre-installed, so we recommend the 'java' cookbook be included
+in the node run_list. We don't explicitly depend on the cookbook, however, to ensure that java is not dropped on nodes
+that do not need it.
+
 ## Resources
 
 ### circonus_check_bundle

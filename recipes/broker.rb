@@ -3,7 +3,8 @@
 # Recipe:: broker
 #
 
-include_recipe 'java'
+# Note that this recipe requires java to be installed. The 'java' cookbook is recommended
+# for this.
 
 install_cmd = value_for_platform(
     "smartos" => {
