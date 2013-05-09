@@ -1,4 +1,6 @@
 
+default["circonus"]["napp"]["port"] = 80
+
 default['circonus']['enabled'] = true
 default['circonus']['app_token'] = nil
 default['circonus']['target'] = ''  # Dynamic default to guess_main_ip() from NetInfo
