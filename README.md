@@ -169,16 +169,36 @@ Actions:
 
 Resource Attributes:
 
+    * type - :data, :guide, :composite - :data by default
     * graph - name of the circonus_graph chef resource on which to draw the data
     * metric - name of the circonus_metric chef resource that provides the data
     * broker - name of the broker, used to identify the check
     * axis - :r or :l, which axis the the data should be measured against
     * color - #FF00FF style; if omitted, circonus server will provide a default
+    * alpha - float or integer; 0 - 1; defaults to 0.3
     * data_formula - see web UI help; may be left null
     * legend_formula - see web UI help; may be left null
     * hidden - true/false, false default
     * derive - :counter, :derive, :gauge - :gauge is default
     
+In order to create a guide, the following attributes can/should be used:
+
+    * type - :guide
+    * name
+    * color
+    * hidden
+    * data_formula - ie "90000"
+    * legend_formula
+
+For composites, the following attributes can/should be used:
+
+    * type - :composite
+    * name
+    * color
+    * axis
+    * hidden
+    * data_formula - ie "= 100 * A / (A + B)"
+    * legend_formula
 
 ## Utility Library
 
