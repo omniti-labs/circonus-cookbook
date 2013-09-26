@@ -9,7 +9,7 @@ def load_current_resource
   # TODO - should this be in the resource initialize() ?
   unless @new_resource.target then 
     if self.respond_to?(:guess_main_ip) then
-      tgt = node['circonus']['target'].empty? ? guess_main_ip() : node['circonus']['target']
+      tgt = node['circonus']['target'].empty? ? node[:fqdn] : node['circonus']['target']
     else
       tgt = node['circonus']['target']
     end
