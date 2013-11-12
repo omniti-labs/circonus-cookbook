@@ -29,6 +29,7 @@ require 'json'
 require 'rest_client'
 require 'uri'
 require 'fileutils'
+require 'cgi'
 
 if RUBY_VERSION =~ /^1\.8/
   class Dir
@@ -197,9 +198,13 @@ class Circonus
   #---------------
   [rw_resources, ro_resources].flatten.each do |resource_name| 
     method_name = 'list_' + resource_name + 's'
-    send :define_method, method_name do # TODO - one day maybe be able to take filtering args?
+    send :define_method, method_name do |filter|
+      params = {}
+      if (not filter.nil?) and filter.any?
+        filter.each { |k,v| params["f_#{k}".to_sym] = v }
+      end
       bomb_shelter {
-        JSON.parse(@rest[resource_name].get)
+        JSON.parse(@rest[resource_name].get :params => params)
       }
     end
   end
@@ -288,15 +293,15 @@ class Circonus
   #---------------
 
   def load_cache_file (which)
-    if File.exists?(options[:cache_path] + '/' + which) then
-      return JSON.parse(IO.read(options[:cache_path] + '/' + which))
+    if File.exists?(options[:cache_path] + '/' + CGI.escape(which)) then
+      return JSON.parse(IO.read(options[:cache_path] + '/' + CGI.escape(which)))
     else
       return {}
     end
   end
 
   def write_cache_file (which, data)
-    File.open(options[:cache_path] + '/' + which, 'w') do |file|
+    File.open(options[:cache_path] + '/' + CGI.escape(which), 'w') do |file|
       file.print(JSON.pretty_generate(data))
     end
   end
@@ -318,7 +323,11 @@ class Circonus
     unless type.nil? then
       type = type.to_s()
     end
-    cache = load_cache_file('check_bundle_ids')
+    cachefilename = "check_bundle_ids"
+    cachefilename += "-target=#{target}" if target
+    cachefilename += "-type=#{type}" if type
+    cachefilename += "-display_name=#{display_name}" if display_name
+    cache = load_cache_file(cachefilename)
     hits = []
     if cache.key?(target) then 
       if type.nil? then
@@ -344,7 +353,11 @@ class Circonus
 
     # list_check_bundles is horrifyingly expensive
     # cache all IDS on that target and type, regardless of name
-    matched_bundles = list_check_bundles.find_all do |bundle| 
+    filter = {}
+    filter['target'] = target if target
+    filter['type'] = type if type
+    filter['display_name'] = display_name if display_name
+    matched_bundles = list_check_bundles(filter).find_all do |bundle| 
       match = bundle['target'] == target
 
       if match then
@@ -361,7 +374,7 @@ class Circonus
       match
     end
 
-    write_cache_file('check_bundle_ids', cache)
+    write_cache_file(cachefilename, cache)
 
     if !display_name.nil? then
       matched_bundles = matched_bundles.select do  |cb|
@@ -374,21 +387,26 @@ class Circonus
   end
 
   def find_broker_id(name)
-    cache = load_cache_file('brokers')
+    cachefilename = "brokers"
+    cachefilename += "-name=#{name}" if name
+
+    cache = load_cache_file(cachefilename)
     if cache.key?(name) then 
       return cache[name]
     end
 
     # If no name in cache file, assume a miss
     
-    matched_brokers = list_brokers.find_all do |broker| 
+    filter = {}
+    filter['_name'] = name if name
+    matched_brokers = list_brokers(filter).find_all do |broker| 
       cache[broker['_name']] = broker['_cid'].gsub('/broker/', '')
       match = broker['_name'] == name
 
       match
     end
 
-    write_cache_file('brokers', cache)
+    write_cache_file(cachefilename, cache)
 
     if matched_brokers.empty? then
       return nil
@@ -401,7 +419,11 @@ class Circonus
   def find_check_id(check_bundle_id, broker_name)
     broker_id = find_broker_id(broker_name)
 
-    cache = load_cache_file('check_ids')
+    cachefilename = "check_ids"
+    cachefilename += "-check_bundle_id=#{check_bundle_id}" if check_bundle_id
+    cachefilename += "-broker_name=#{broker_name}" if broker_name
+
+    cache = load_cache_file(cachefilename)
     if cache[check_bundle_id] && cache[check_bundle_id][broker_id]  then
       return cache[check_bundle_id][broker_id]
     end
@@ -425,28 +447,33 @@ class Circonus
 
     cache[check_bundle_id] ||= {}
     cache[check_bundle_id][broker_id] = check_id
-    write_cache_file('check_ids', cache)
+    write_cache_file(cachefilename, cache)
 
     check_id
 
   end
 
   def find_contact_group_id(name)
-    cache = load_cache_file('contact_groups')
+    cachefilename = "contact_groups"
+    cachefilename += "-name=#{name}" if name
+
+    cache = load_cache_file(cachefilename)
     if cache.key?(name) then 
       return cache[name]
     end
 
     # If no name in cache file, assume a miss
     
-    matched_contact_groups = list_contact_groups.find_all do |contact_group| 
+    filter = {}
+    filter['name'] = name if name
+    matched_contact_groups = list_contact_groups(filter).find_all do |contact_group| 
       cache[contact_group['name']] = contact_group['_cid'].gsub('/contact_group/', '')
       match = contact_group['name'] == name
 
       match
     end
 
-    write_cache_file('contact_groups', cache)
+    write_cache_file(cachefilename, cache)
 
     if matched_contact_groups.empty? then
       return nil
@@ -458,13 +485,18 @@ class Circonus
 
 
   def find_graph_ids(title)
-    cache = load_cache_file('graphs')
+    cachefilename = "graphs"
+    cachefilename += "-title=#{title}" if title
+
+    cache = load_cache_file(cachefilename)
     if cache.key?(title) then 
       return cache[title]
     end
 
     # If no title in cache file, assume a miss
-    matched_graphs = list_graphs.find_all do |graph| 
+    filter = {}
+    filter['title'] = title if title
+    matched_graphs = list_graphs(filter).find_all do |graph| 
       match = graph['title'] == title
 
       # Only cache on a match?
@@ -479,7 +511,7 @@ class Circonus
       match
     end
 
-    write_cache_file('graphs', cache)
+    write_cache_file(cachefilename, cache)
     matched_graph_ids = matched_graphs.map { |bundle| bundle['_cid'].gsub('/graph/', '') }
 
   end
